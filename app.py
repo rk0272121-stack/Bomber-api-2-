@@ -208,7 +208,7 @@ class APIManager:
             },
             {
                 "name": "API 2",
-                "url": "https://bomber-api-2.onrender.com/bomb/{number}/{amount}",
+                "url": "https://bomber-api-png1.onrender.com/bomb/{number}/{amount}",
                 "success": 0,
                 "failed": 0,
                 "total": 0

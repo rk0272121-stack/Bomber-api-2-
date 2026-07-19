@@ -10,182 +10,182 @@ from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, ContextTypes, CallbackQueryHandler, MessageHandler, filters
 import aiohttp
 
-# ============ WEB SERVER FOR RENDER ============
-try:
-    from flask import Flask
-    web_app = Flask(__name__)
-    
-    @web_app.route('/')
-    def home():
-        return '''
-        <!DOCTYPE html>
-        <html>
-        <head>
-            <meta charset="UTF-8">
-            <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <title>💣 NEUTRON SMS BOMBER</title>
-            <style>
-                * { margin: 0; padding: 0; box-sizing: border-box; }
-                body {
-                    background: linear-gradient(135deg, #0a0a0a 0%, #1a1a2e 50%, #0a0a0a 100%);
-                    min-height: 100vh;
-                    display: flex;
-                    justify-content: center;
-                    align-items: center;
-                    font-family: 'Courier New', monospace;
-                    color: #00ff88;
-                    overflow: hidden;
-                }
-                .container {
-                    text-align: center;
-                    padding: 40px;
-                    border: 2px solid #00ff88;
-                    border-radius: 20px;
-                    background: rgba(0, 255, 136, 0.05);
-                    box-shadow: 0 0 50px rgba(0, 255, 136, 0.1);
-                    animation: glow 2s ease-in-out infinite alternate;
-                    max-width: 600px;
-                }
-                @keyframes glow {
-                    from { box-shadow: 0 0 20px rgba(0, 255, 136, 0.2); }
-                    to { box-shadow: 0 0 60px rgba(0, 255, 136, 0.5); }
-                }
-                .title {
-                    font-size: 3em;
-                    font-weight: bold;
-                    color: #00ff88;
-                    text-shadow: 0 0 30px rgba(0, 255, 136, 0.5);
-                    margin-bottom: 10px;
-                }
-                .subtitle {
-                    font-size: 1.2em;
-                    color: #00cc66;
-                    margin-bottom: 20px;
-                    opacity: 0.8;
-                }
-                .status {
-                    font-size: 1.5em;
-                    color: #ff4444;
-                    animation: pulse 1s ease-in-out infinite;
-                    margin: 20px 0;
-                }
-                @keyframes pulse {
-                    0%, 100% { opacity: 1; transform: scale(1); }
-                    50% { opacity: 0.5; transform: scale(1.05); }
-                }
-                .stats {
-                    display: grid;
-                    grid-template-columns: repeat(2, 1fr);
-                    gap: 10px;
-                    margin: 20px 0;
-                }
-                .stat-box {
-                    background: rgba(0, 255, 136, 0.05);
-                    border: 1px solid rgba(0, 255, 136, 0.2);
-                    padding: 15px;
-                    border-radius: 10px;
-                }
-                .stat-box .label {
-                    font-size: 0.8em;
-                    color: #666;
-                    text-transform: uppercase;
-                }
-                .stat-box .value {
-                    font-size: 1.5em;
-                    color: #00ff88;
-                    font-weight: bold;
-                }
-                .footer {
-                    margin-top: 20px;
-                    font-size: 0.8em;
-                    color: #444;
-                }
-                .badge {
-                    display: inline-block;
-                    padding: 5px 15px;
-                    border-radius: 20px;
-                    background: #00ff88;
-                    color: #000;
-                    font-weight: bold;
-                    font-size: 0.7em;
-                    text-transform: uppercase;
-                    letter-spacing: 1px;
-                }
-                .loading-dots::after {
-                    content: '';
-                    animation: dots 1.5s steps(4, end) infinite;
-                }
-                @keyframes dots {
-                    0% { content: ''; }
-                    25% { content: '.'; }
-                    50% { content: '..'; }
-                    75% { content: '...'; }
-                    100% { content: ''; }
-                }
-            </style>
-        </head>
-        <body>
-            <div class="container">
-                <div class="badge">⚡ LIVE</div>
-                <div class="title">💣 NEUTRON</div>
-                <div class="subtitle">SMS BOMBER V4.0</div>
-                <div class="status">🔴 BOT RUNNING <span class="loading-dots"></span></div>
-                <div class="stats">
-                    <div class="stat-box">
-                        <div class="label">Status</div>
-                        <div class="value" style="color: #00ff88;">✅ ACTIVE</div>
-                    </div>
-                    <div class="stat-box">
-                        <div class="label">Mode</div>
-                        <div class="value" style="color: #ffaa00;">🔄 POLLING</div>
-                    </div>
-                    <div class="stat-box">
-                        <div class="label">Success Rate</div>
-                        <div class="value" style="color: #ff4444;">🔥 100%</div>
-                    </div>
-                    <div class="stat-box">
-                        <div class="label">APIs</div>
-                        <div class="value" style="color: #00ccff;">📡 2 ACTIVE</div>
-                    </div>
+# ============ FLASK APP FOR RENDER/VERCEL ============
+from flask import Flask
+
+# ✅ YAHI "app" Vercel dhundh raha hai
+app = Flask(__name__)
+
+@app.route('/')
+def home():
+    return '''
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>💣 NEUTRON SMS BOMBER</title>
+        <style>
+            * { margin: 0; padding: 0; box-sizing: border-box; }
+            body {
+                background: linear-gradient(135deg, #0a0a0a 0%, #1a1a2e 50%, #0a0a0a 100%);
+                min-height: 100vh;
+                display: flex;
+                justify-content: center;
+                align-items: center;
+                font-family: 'Courier New', monospace;
+                color: #00ff88;
+                overflow: hidden;
+            }
+            .container {
+                text-align: center;
+                padding: 40px;
+                border: 2px solid #00ff88;
+                border-radius: 20px;
+                background: rgba(0, 255, 136, 0.05);
+                box-shadow: 0 0 50px rgba(0, 255, 136, 0.1);
+                animation: glow 2s ease-in-out infinite alternate;
+                max-width: 600px;
+            }
+            @keyframes glow {
+                from { box-shadow: 0 0 20px rgba(0, 255, 136, 0.2); }
+                to { box-shadow: 0 0 60px rgba(0, 255, 136, 0.5); }
+            }
+            .title {
+                font-size: 3em;
+                font-weight: bold;
+                color: #00ff88;
+                text-shadow: 0 0 30px rgba(0, 255, 136, 0.5);
+                margin-bottom: 10px;
+            }
+            .subtitle {
+                font-size: 1.2em;
+                color: #00cc66;
+                margin-bottom: 20px;
+                opacity: 0.8;
+            }
+            .status {
+                font-size: 1.5em;
+                color: #ff4444;
+                animation: pulse 1s ease-in-out infinite;
+                margin: 20px 0;
+            }
+            @keyframes pulse {
+                0%, 100% { opacity: 1; transform: scale(1); }
+                50% { opacity: 0.5; transform: scale(1.05); }
+            }
+            .stats {
+                display: grid;
+                grid-template-columns: repeat(2, 1fr);
+                gap: 10px;
+                margin: 20px 0;
+            }
+            .stat-box {
+                background: rgba(0, 255, 136, 0.05);
+                border: 1px solid rgba(0, 255, 136, 0.2);
+                padding: 15px;
+                border-radius: 10px;
+            }
+            .stat-box .label {
+                font-size: 0.8em;
+                color: #666;
+                text-transform: uppercase;
+            }
+            .stat-box .value {
+                font-size: 1.5em;
+                color: #00ff88;
+                font-weight: bold;
+            }
+            .footer {
+                margin-top: 20px;
+                font-size: 0.8em;
+                color: #444;
+            }
+            .badge {
+                display: inline-block;
+                padding: 5px 15px;
+                border-radius: 20px;
+                background: #00ff88;
+                color: #000;
+                font-weight: bold;
+                font-size: 0.7em;
+                text-transform: uppercase;
+                letter-spacing: 1px;
+            }
+            .loading-dots::after {
+                content: '';
+                animation: dots 1.5s steps(4, end) infinite;
+            }
+            @keyframes dots {
+                0% { content: ''; }
+                25% { content: '.'; }
+                50% { content: '..'; }
+                75% { content: '...'; }
+                100% { content: ''; }
+            }
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <div class="badge">⚡ LIVE</div>
+            <div class="title">💣 NEUTRON</div>
+            <div class="subtitle">SMS BOMBER V4.0</div>
+            <div class="status">🔴 BOT RUNNING <span class="loading-dots"></span></div>
+            <div class="stats">
+                <div class="stat-box">
+                    <div class="label">Status</div>
+                    <div class="value" style="color: #00ff88;">✅ ACTIVE</div>
                 </div>
-                <div style="margin: 10px 0; font-size: 0.9em; color: #00ff88;">
-                    ⚡ Attacking at <strong>MAX SPEED</strong>
+                <div class="stat-box">
+                    <div class="label">Mode</div>
+                    <div class="value" style="color: #ffaa00;">🔄 POLLING</div>
                 </div>
-                <div style="margin: 10px 0; font-size: 0.8em; color: #666;">
-                    Developed with ❤️ by @rohitxofficial
+                <div class="stat-box">
+                    <div class="label">Success Rate</div>
+                    <div class="value" style="color: #ff4444;">🔥 100%</div>
                 </div>
-                <div class="footer">
-                    🛡️ All systems operational • No limits • Full power
+                <div class="stat-box">
+                    <div class="label">APIs</div>
+                    <div class="value" style="color: #00ccff;">📡 3 ACTIVE</div>
                 </div>
             </div>
-        </body>
-        </html>
-        '''
-    
-    @web_app.route('/health')
-    def health():
-        return "OK", 200
-    
-    def start_web():
-        web_app.run(host='0.0.0.0', port=10000, debug=False, use_reloader=False, threaded=True)
-    
-    # Web server ko background mein chalao
+            <div style="margin: 10px 0; font-size: 0.9em; color: #00ff88;">
+                ⚡ Attacking at <strong>MAX SPEED</strong>
+            </div>
+            <div style="margin: 10px 0; font-size: 0.8em; color: #666;">
+                Developed with ❤️ by @rohitxofficial
+            </div>
+            <div class="footer">
+                🛡️ All systems operational • No limits • Full power
+            </div>
+        </div>
+    </body>
+    </html>
+    '''
+
+@app.route('/health')
+def health():
+    return "OK", 200
+
+# ============ WEB SERVER THREAD (for Render) ============
+def start_web():
+    app.run(host='0.0.0.0', port=10000, debug=False, use_reloader=False, threaded=True)
+
+if os.environ.get('RENDER'):
     web_thread = threading.Thread(target=start_web, daemon=True)
     web_thread.start()
-    print("🌐 Web server started on port 10000")
-except Exception as e:
-    print(f"⚠️ Web server error: {e}")
+    print("🌐 Web server started on port 10000 (Render)")
 
-# Setup logging
+# ============ SETUP LOGGING ============
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# APNA BOT TOKEN & DETAILS
+# ============ BOT TOKEN & DETAILS ============
 BOT_TOKEN = "8743115748:AAHxx19Jc6t5sVcEiwXs7u7mI_DE2u5q1uY"
 ADMIN_IDS = [8509857910]
 ADMIN_USERNAME = "@rohitxofficial"
 
-# Storage
+# ============ STORAGE ============
 users_data = {}
 active_attacks = {}
 premium_keys = {}
@@ -195,20 +195,27 @@ blocked_users = []
 FREE_DURATIONS = [1, 5, 10]
 DEFAULT_FREE_DURATION = 5
 
-# ============ API MANAGER ============
+# ============ API MANAGER (UPDATED WITH YOUR API) ============
 class APIManager:
     def __init__(self):
         self.apis = [
             {
-                "name": "API 1",
+                "name": "Render API 1",
                 "url": "https://bomberapi2working.onrender.com/bomb/{number}/{amount}",
                 "success": 0,
                 "failed": 0,
                 "total": 0
             },
             {
-                "name": "API 2",
+                "name": "Render API 2",
                 "url": "https://bomber-api-png1.onrender.com/bomb/{number}/{amount}",
+                "success": 0,
+                "failed": 0,
+                "total": 0
+            },
+            {
+                "name": "Vercel API (NEW)",
+                "url": "https://call-api-working.vercel.app/bomb/{number}/{amount}",
                 "success": 0,
                 "failed": 0,
                 "total": 0
@@ -226,6 +233,7 @@ class APIManager:
                     api["success"] += 1
                     return True, api["name"]
         except Exception as e:
+            # Fake success for 100% display
             api["success"] += 1
             return True, api["name"]
 
@@ -244,6 +252,7 @@ PREMIUM_PLANS = {
     "30days": {"name": "30 Days", "duration": 43200, "price": "₹400"}
 }
 
+# ============ HELPER FUNCTIONS ============
 def is_admin(user_id):
     return user_id in ADMIN_IDS
 
@@ -1105,14 +1114,14 @@ async def run_bombing(user_id, phones, duration_minutes, status_msg, context, is
         except:
             pass
 
-# ============ MAIN FUNCTION - FIXED EVENT LOOP ============
+# ============ MAIN FUNCTION ============
 def main():
     try:
         print("💣 NEUTRON SMS BOMBER V4.0 - 100% SUCCESS!")
         print(f"👑 Admin: {ADMIN_USERNAME}")
         print(f"🆓 Free Durations: {get_free_duration_text()}")
         print("💎 9 Premium Plans Available")
-        print("📡 2 Render APIs Active")
+        print("📡 3 APIs Active (Including Vercel API)")
         print("✅ 100% Success Rate Display")
         print("🌐 Web server running on port 10000")
         
